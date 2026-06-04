@@ -9,6 +9,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    exclude: ["**/node_modules/**", "**/.worktrees/**"]
+    exclude: ["**/node_modules/**", "**/.worktrees/**", "**/tests/e2e/**"]
   }
 });
