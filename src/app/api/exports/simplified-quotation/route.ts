@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { hasPermission } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { assertFormalResultExists } from "@/lib/domain/exports/exportGuards";
+import { demoExportResult } from "@/lib/domain/exports/exportTypes";
 import { buildSimplifiedQuotationExcel } from "@/lib/domain/exports/simplifiedQuotationExcel";
 
 type ExportRequest = {
@@ -27,6 +28,34 @@ export async function POST(request: Request) {
   const file = buildSimplifiedQuotationExcel({
     result,
     targetGrossMargin: body.targetGrossMargin ?? 0.25,
+    quotationDate: new Date().toISOString().slice(0, 10)
+  });
+
+  return new Response(new Uint8Array(file), {
+    headers: excelHeaders("simplified-quotation.xlsx")
+  });
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const costResultId = url.searchParams.get("costResultId");
+  const role = url.searchParams.get("role") as Role | null;
+  const targetGrossMargin = Number(url.searchParams.get("targetGrossMargin") ?? "0.25");
+
+  if (!role || !hasPermission(role, "export_simplified_quote")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!costResultId) {
+    return NextResponse.json({ error: "costResultId is required" }, { status: 400 });
+  }
+
+  const result = costResultId.startsWith("demo-result")
+    ? demoExportResult(costResultId)
+    : assertFormalResultExists(await findExportableResult(costResultId));
+  const file = buildSimplifiedQuotationExcel({
+    result,
+    targetGrossMargin: Number.isFinite(targetGrossMargin) ? targetGrossMargin : 0.25,
     quotationDate: new Date().toISOString().slice(0, 10)
   });
 

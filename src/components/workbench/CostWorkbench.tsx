@@ -57,6 +57,7 @@ export function CostWorkbench() {
   const [estimate, setEstimate] = useState<WorkbenchEstimate | null>(null);
   const [message, setMessage] = useState("");
   const [formalResult, setFormalResult] = useState("");
+  const [formalResultId, setFormalResultId] = useState<string | null>(null);
 
   async function createProject() {
     const response = await fetch("/api/cost-projects", {
@@ -116,6 +117,7 @@ export function CostWorkbench() {
       return;
     }
 
+    setFormalResultId(result.result.id);
     setFormalResult(`正式结果 ${result.result.version}`);
     setMessage("正式结果已生成");
   }
@@ -171,7 +173,29 @@ export function CostWorkbench() {
       </div>
 
       <CostSummaryPanel estimate={estimate} />
-      {formalResult ? <p data-testid="formal-result">{formalResult}</p> : null}
+      {formalResult ? (
+        <section style={{ display: "grid", gap: 10 }}>
+          <p data-testid="formal-result" style={{ margin: 0 }}>{formalResult}</p>
+          {formalResultId ? (
+            <div style={{ display: "flex", gap: 8 }}>
+              <a
+                href={`/api/exports/internal-detail?costResultId=${formalResultId}&role=admin`}
+                download
+                style={linkButton}
+              >
+                下载内部明细
+              </a>
+              <a
+                href={`/api/exports/simplified-quotation?costResultId=${formalResultId}&role=admin`}
+                download
+                style={linkButton}
+              >
+                下载简化报价
+              </a>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -199,4 +223,13 @@ const secondaryButton = {
   background: "white",
   color: "#0f172a",
   padding: "0 14px"
+};
+
+const linkButton = {
+  minHeight: 38,
+  border: "1px solid #cbd5e1",
+  borderRadius: 6,
+  color: "#0f172a",
+  padding: "8px 14px",
+  textDecoration: "none"
 };

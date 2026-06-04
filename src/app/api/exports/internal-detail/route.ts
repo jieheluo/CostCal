@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { hasPermission } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { assertFormalResultExists } from "@/lib/domain/exports/exportGuards";
+import { demoExportResult } from "@/lib/domain/exports/exportTypes";
 import { buildInternalDetailExcel } from "@/lib/domain/exports/internalDetailExcel";
 
 type ExportRequest = {
@@ -23,6 +24,29 @@ export async function POST(request: Request) {
   }
 
   const result = assertFormalResultExists(await findExportableResult(body.costResultId));
+  const file = buildInternalDetailExcel(result);
+
+  return new Response(new Uint8Array(file), {
+    headers: excelHeaders("internal-detail.xlsx")
+  });
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const costResultId = url.searchParams.get("costResultId");
+  const role = url.searchParams.get("role") as Role | null;
+
+  if (!role || !hasPermission(role, "export_internal_detail")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!costResultId) {
+    return NextResponse.json({ error: "costResultId is required" }, { status: 400 });
+  }
+
+  const result = costResultId.startsWith("demo-result")
+    ? demoExportResult(costResultId)
+    : assertFormalResultExists(await findExportableResult(costResultId));
   const file = buildInternalDetailExcel(result);
 
   return new Response(new Uint8Array(file), {

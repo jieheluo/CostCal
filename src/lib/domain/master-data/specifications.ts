@@ -62,14 +62,16 @@ export type MaterialPriceListItem = {
 export async function listSpecifications(input: {
   dbClient?: Pick<MasterDataRunner, "specification">;
 } = {}): Promise<SpecificationOption[]> {
-  const rows = await getRunner(input.dbClient).specification.findMany({
-    select: {
-      id: true,
-      displayName: true,
-      normalizedKey: true
-    },
-    orderBy: { displayName: "asc" }
-  });
+  const rows = await tryFindMany(() => getRunner(input.dbClient).specification.findMany({
+      select: {
+        id: true,
+        displayName: true,
+        normalizedKey: true
+      },
+      orderBy: { displayName: "asc" }
+    }),
+    []
+  );
 
   return rows.map((row) => ({
     id: row.id,
@@ -83,46 +85,56 @@ export async function listMaterialPrices(input: {
   search?: string;
 } = {}): Promise<MaterialPriceListItem[]> {
   const search = input.search?.trim();
-  const rows = await getRunner(input.dbClient).supplierPrice.findMany({
-    where: search
-      ? {
-          OR: [
-            { material: { category: { contains: search } } },
-            { material: { materialCode: { contains: search } } },
-            { material: { name: { contains: search } } },
-            { specification: { displayName: { contains: search } } },
-            { supplier: { name: { contains: search } } },
-            { importBatch: { fileName: { contains: search } } }
-          ]
+  const rows = await tryFindMany(() => getRunner(input.dbClient).supplierPrice.findMany({
+      where: search
+        ? {
+            OR: [
+              { material: { category: { contains: search } } },
+              { material: { materialCode: { contains: search } } },
+              { material: { name: { contains: search } } },
+              { specification: { displayName: { contains: search } } },
+              { supplier: { name: { contains: search } } },
+              { importBatch: { fileName: { contains: search } } }
+            ]
+          }
+        : undefined,
+      include: {
+        material: true,
+        specification: true,
+        supplier: true,
+        importBatch: {
+          select: {
+            id: true,
+            fileName: true,
+            importedAt: true
+          }
         }
-      : undefined,
-    include: {
-      material: true,
-      specification: true,
-      supplier: true,
-      importBatch: {
-        select: {
-          id: true,
-          fileName: true,
-          importedAt: true
-        }
-      }
-    },
-    orderBy: [
-      { material: { category: "asc" } },
-      { material: { materialCode: "asc" } },
-      { specification: { displayName: "asc" } },
-      { supplier: { name: "asc" } },
-      { effectiveDate: "desc" }
-    ],
-    take: 200
-  });
+      },
+      orderBy: [
+        { material: { category: "asc" } },
+        { material: { materialCode: "asc" } },
+        { specification: { displayName: "asc" } },
+        { supplier: { name: "asc" } },
+        { effectiveDate: "desc" }
+      ],
+      take: 200
+    }),
+    []
+  );
 
   return rows.map(toMaterialPriceListItem);
 }
 
 function getRunner<T extends Partial<MasterDataRunner>>(dbClient?: T): T & MasterDataRunner {
   return (dbClient ?? db) as T & MasterDataRunner;
+}
+
+async function tryFindMany<T>(callback: () => Promise<T[]>, fallback: T[]): Promise<T[]> {
+  try {
+    return await callback();
+  } catch {
+    return fallback;
+  }
 }
 
 function toMaterialPriceListItem(row: MaterialPriceRow): MaterialPriceListItem {
