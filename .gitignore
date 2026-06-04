@@ -7,5 +7,7 @@ playwright-report/
 test-results/
 .superpowers/
 .worktrees/
+prisma/dev.db*
 .env*
+!.env.example
 *.tsbuildinfo

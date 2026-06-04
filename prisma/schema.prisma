@@ -1,0 +1,273 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  cost_engineer
+  procurement
+  admin
+}
+
+enum ImportTemplateType {
+  material_price
+  standard_uph
+  standard_usage
+}
+
+enum ImportBatchStatus {
+  preview
+  imported
+  failed
+}
+
+enum CostProjectStatus {
+  draft
+  calculated
+  archived
+}
+
+enum CostGroup {
+  main_material
+  auxiliary_material
+  process_outsourced_fee
+  overhead_allocation
+}
+
+enum PricingMode {
+  CNY_PER_K
+  USAGE_TIMES_UNIT_PRICE
+  SHOT_CONVERSION
+  CNY_PER_PIECE_TO_K
+  BATCH_TO_K
+  MANUAL_WITH_SOURCE
+}
+
+enum ExportType {
+  internal_detail
+  simplified_quote
+}
+
+model User {
+  id             String         @id @default(cuid())
+  name           String
+  email          String         @unique
+  role           Role
+  createdAt      DateTime       @default(now())
+  importBatches  ImportBatch[]
+  costProjects   CostProject[]
+  costResults    CostResult[]
+  exportRecords  ExportRecord[]
+}
+
+model ImportBatch {
+  id              String             @id @default(cuid())
+  templateType    ImportTemplateType
+  templateVersion String
+  fileName        String
+  status          ImportBatchStatus  @default(preview)
+  successRowCount Int                @default(0)
+  failedRowCount  Int                @default(0)
+  errorReportPath String?
+  importedById    String
+  importedBy      User               @relation(fields: [importedById], references: [id])
+  importedAt      DateTime           @default(now())
+  materials       Material[]
+  supplierPrices  SupplierPrice[]
+  uphRoutes       UPHRoute[]
+  standardUsages  StandardUsage[]
+}
+
+model Material {
+  id            String          @id @default(cuid())
+  category      String
+  materialCode  String
+  name          String
+  defaultUnit   String
+  importBatchId String?
+  importBatch   ImportBatch?    @relation(fields: [importBatchId], references: [id])
+  prices        SupplierPrice[]
+  standardUsages StandardUsage[]
+
+  @@unique([materialCode, category])
+}
+
+model Specification {
+  id             String          @id @default(cuid())
+  normalizedKey  String          @unique
+  displayName    String
+  aliases        SpecificationAlias[]
+  prices         SupplierPrice[]
+  standardUsages StandardUsage[]
+  costItems      CostItem[]
+}
+
+model SpecificationAlias {
+  id              String        @id @default(cuid())
+  alias           String        @unique
+  specificationId String
+  specification   Specification @relation(fields: [specificationId], references: [id])
+}
+
+model Supplier {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  status    String          @default("active")
+  prices    SupplierPrice[]
+  costItems CostItem[]
+}
+
+model SupplierPrice {
+  id              String        @id @default(cuid())
+  materialId      String
+  material        Material      @relation(fields: [materialId], references: [id])
+  specificationId String
+  specification   Specification @relation(fields: [specificationId], references: [id])
+  supplierId      String
+  supplier        Supplier      @relation(fields: [supplierId], references: [id])
+  price           Decimal
+  priceUnit       String
+  effectiveDate   DateTime
+  importBatchId   String
+  importBatch     ImportBatch   @relation(fields: [importBatchId], references: [id])
+  costItems       CostItem[]
+
+  @@unique([materialId, specificationId, supplierId, effectiveDate])
+}
+
+model PackageType {
+  id                String          @id @default(cuid())
+  packageName       String          @unique
+  weightCoefficient Decimal         @default(1)
+  uphRoutes         UPHRoute[]
+  standardUsages    StandardUsage[]
+  costProjects      CostProject[]
+  monthlyOutputs    MonthlyOutput[]
+}
+
+model UPHRoute {
+  id             String      @id @default(cuid())
+  packageTypeId  String
+  packageType    PackageType @relation(fields: [packageTypeId], references: [id])
+  processName    String
+  standardUph    Decimal
+  importBatchId  String?
+  importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id])
+
+  @@unique([packageTypeId, processName])
+}
+
+model StandardUsage {
+  id              String       @id @default(cuid())
+  packageTypeId   String
+  packageType     PackageType  @relation(fields: [packageTypeId], references: [id])
+  costGroup       CostGroup
+  itemName        String
+  materialId      String?
+  material        Material?    @relation(fields: [materialId], references: [id])
+  specificationId String?
+  specification   Specification? @relation(fields: [specificationId], references: [id])
+  standardUsage   Decimal
+  usageUnit       String
+  pricingMode     PricingMode
+  importBatchId   String?
+  importBatch     ImportBatch? @relation(fields: [importBatchId], references: [id])
+}
+
+model CostProject {
+  id            String            @id @default(cuid())
+  productName   String
+  packageTypeId String
+  packageType   PackageType       @relation(fields: [packageTypeId], references: [id])
+  version       String
+  status        CostProjectStatus @default(draft)
+  createdById   String
+  createdBy     User              @relation(fields: [createdById], references: [id])
+  createdAt     DateTime          @default(now())
+  costItems     CostItem[]
+  costResults   CostResult[]
+
+  @@unique([productName, packageTypeId, version])
+}
+
+model CostItem {
+  id              String         @id @default(cuid())
+  projectId       String
+  project         CostProject    @relation(fields: [projectId], references: [id])
+  costGroup       CostGroup
+  itemName        String
+  specificationId String?
+  specification   Specification? @relation(fields: [specificationId], references: [id])
+  supplierId      String?
+  supplier        Supplier?      @relation(fields: [supplierId], references: [id])
+  supplierPriceId String?
+  supplierPrice   SupplierPrice? @relation(fields: [supplierPriceId], references: [id])
+  usage           Decimal?
+  usageUnit       String?
+  price           Decimal?
+  priceUnit       String?
+  pricingMode     PricingMode
+  formulaVersion  String
+  priceSource     String?
+  includeInQuote  Boolean        @default(true)
+  sourceNote      String?
+  createdAt       DateTime       @default(now())
+}
+
+model MonthlyExpense {
+  id                     String   @id @default(cuid())
+  month                  String   @unique
+  laborCost              Decimal  @default(0)
+  rentCost               Decimal  @default(0)
+  powerCost              Decimal  @default(0)
+  depreciationCost       Decimal  @default(0)
+  otherManufacturingCost Decimal  @default(0)
+  createdAt              DateTime @default(now())
+}
+
+model MonthlyOutput {
+  id                String      @id @default(cuid())
+  month             String
+  packageTypeId     String
+  packageType       PackageType @relation(fields: [packageTypeId], references: [id])
+  actualOutputK     Decimal
+  weightCoefficient Decimal
+
+  @@unique([month, packageTypeId])
+}
+
+model CostResult {
+  id                    String       @id @default(cuid())
+  projectId             String
+  project               CostProject  @relation(fields: [projectId], references: [id])
+  version               String
+  mainMaterialCostK     Decimal
+  auxiliaryMaterialCostK Decimal
+  processFeeCostK       Decimal
+  overheadCostK         Decimal
+  totalCostK            Decimal
+  formulaVersion        String
+  inputSnapshot         String
+  priceSnapshot         String
+  importBatchSnapshot   String
+  calculatedById        String
+  calculatedBy          User         @relation(fields: [calculatedById], references: [id])
+  calculatedAt          DateTime     @default(now())
+  exportRecords         ExportRecord[]
+
+  @@unique([projectId, version])
+}
+
+model ExportRecord {
+  id           String      @id @default(cuid())
+  costResultId String
+  costResult   CostResult  @relation(fields: [costResultId], references: [id])
+  exportType   ExportType
+  createdById  String
+  createdBy    User        @relation(fields: [createdById], references: [id])
+  createdAt    DateTime    @default(now())
+}
