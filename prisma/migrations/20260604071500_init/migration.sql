@@ -223,6 +223,9 @@ CREATE UNIQUE INDEX "PackageType_packageName_key" ON "PackageType"("packageName"
 CREATE UNIQUE INDEX "UPHRoute_packageTypeId_processName_key" ON "UPHRoute"("packageTypeId", "processName");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "StandardUsage_packageTypeId_costGroup_itemName_specificationId_key" ON "StandardUsage"("packageTypeId", "costGroup", "itemName", "specificationId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "CostProject_productName_packageTypeId_version_key" ON "CostProject"("productName", "packageTypeId", "version");
 
 -- CreateIndex

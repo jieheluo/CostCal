@@ -176,6 +176,8 @@ model StandardUsage {
   pricingMode     PricingMode
   importBatchId   String?
   importBatch     ImportBatch? @relation(fields: [importBatchId], references: [id])
+
+  @@unique([packageTypeId, costGroup, itemName, specificationId])
 }
 
 model CostProject {
